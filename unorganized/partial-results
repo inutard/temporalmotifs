@@ -1,0 +1,143 @@
+Searching for motif M_{6, 1}.
+Typical variance from windowing at 2\delta: ~3.5% across all datasets. 
+
+Parameters: (window size, sampling prob of windows, # trials) = (2 * \delta, 1.0, 1)
+
+* In comparisons, we give their method up to 4 threads if needed.
+Ours vs [Paranjape, Benson, Leskovec]:
+--------------------------------------
+sx-askubuntu: 			0.16s vs 3.33s 
+email-Eu-core-temporal: 0.10s vs 0.22s 
+sx-mathoverflow: 		0.13s vs 0.77s
+sx-stackoverflow:		21.5s vs 4m41s 
+sx-superuser:			0.25s vs 3.34s
+CollegeMsg:				0.02s vs 0.05s
+
+All within 5% error of actual counts.
+
+Variance reduction results:
+---------------------------
+*heuristic sampling prob: pi = 10^4 * |E(G_window)| / |E_tot|.
+ compared with constant prob: sum pi / num windows]
+
+sx-askubuntu:				240 	vs 	420 
+email-Eu-core-temporal:		2100 	vs 	6800
+sx-mathoverflow:			70		vs	110
+sx-superuser:				280 	vs 	340
+CollegeMsg:					8600 	vs 	16000
+
+Another variance reduction technique: control variates.
+Estimate X + c * (Y - E[Y]).
+Optimal c is -Cov(X,Y) / Var(Y).
+In this case choose Y to be the heuristic value.
+
+Optimal c value for data-sets:
+------------------------------
+sx-askubuntu:				-0.010
+email-Eu-core-temporal:		-0.300
+sx-mathoverflow:			-0.007
+sx-superuser:				-0.007
+CollegeMsg:					-4.240
+^ No data for actual variance reduction yet. Could be one thing to transfer from graph to graph.
+
+Choosing predictor heuristic can result in low sampling probabilities.
+How do we get around this?
+
+Understand how the shift controls variance vs window sampling.
+Understand what the graphs look like at the moment of discontinuity for motifs.
+
+------------------------------------------------------
+
+- try degree^2 heuristic
+- analyze variance of sliding window and variance of random sampling
+- parallelization and streaming
+
+mini-motifcount: 		classic sliding window with edge based probabilities
+mini-motifcount-alt: 	using control variate technique
+mini-motifcount-alt2: 	random window sampling edge based probabilities
+mini-motifcount-alt3:	sliding window with degree^2 heuristic
+
+
+For motif-count-alt3 vs the classic motif counting, we achieve
+
+78 v 54 variance ---> 1.44x smaller var. Avged across 10 runs, on mathoverflow dataset
+400 v 270 var    ---> 1.5x smaller, on superuser dataset
+7865 v 8132 var  ---> slightly worse!! on CollegeMsg dataset
+2093 v 1934 	 ---> slightly worse!! on emails dataset
+
+some theory:
+can easily count unlabelled stars, can form variance estimators from those
+if star timestamps are uniformly distributed, then we get it right 1/k!
+proportion of the time.
+
+Sampling windows randomly vs sampling with sliding window + fixed delta:
+
+Let p = sum p_i / n i.e. the average probability we'll sample a window.
+
+Let S_delta := the expected value of the sliding window with a fixed delta
+S_delta = 
+0 with prob prod (1-pi)
+C_{0,delta}/p0 with p_0 * prob (1-pi)
+...
+etc
+
+Let R_delta := the expected value of sampling randomly from a random delta.
+R_delta :=
+C_{i}/pi with prob p_i
+...
+
+Let C_{i, delta} := number of motifs in window i with shift delta.
+
+E[S_delta] = sum_i C_{i, delta}
+Var[S_delta] = sum Var[S_{i,delta}] + sum Cov[S_{i, delta} S_{j, delta}]
+= sum C_{i}^2 / pi' - C_i^2
+
+we have sum pi' = p * n.
+
+E[R_delta] = sum_i C_{i, delta}
+E[Sum R_delta / m] = sum_i C_{i, delta}
+
+Var[Sum R_delta / m]
+= Var[R_delta] / m
+= ( sum_{delta} sum C_{i, delta}^2 / (delta p_{i, delta}) - (sum C_i)^2 ) / m
+if i fix a delta...
+= (sum C_i^2 / pi - (sum C_i)^2) / m
+^ minimized if pi = ci.
+
+(sum C_i^2 / pi - (sum C_i)^2) / m = sum C_{i}^2 / pi' - sum C_i^2
+
+-> sum C_i^2 (1/pi - m / pi' - 1 + m) = sum C_i C_j
+assuming C_i's are uniform and pi's are uniform,
+
+C^2 * n (1/pi - 1 - m (1/pi' - 1)) ~ n^2 C^2
+
+want m such that
+1/pi - 1 - m (1/pi' - 1) ~ n - 1
+pi = C_i / (Sum C_i) = 1/n i guess
+pi' = uniform parameter p.
+
+n-1 - m(1/p - 1) = n-1
+
+how do i show
+sum x_i^2 / pi - (sum x_i)^2 > 0
+sum x_i^2 * (1/pi - 1) > sum x_i x_j
+
+that hessian matrix:
+
+A_{i,j} = 0 if i != j.
+A_{i,i} is positive.
+^ positive definite -> local minimum
+
+-------------------------------------------------------
+
+Theres variance from the weighted estimator and theres variance from the sampling.
+What are the variances from these two sources?
+
+Another way of sampling?
+Roll a window, roll a random die, and then scale by the value of the random die.
+
+Phase transition on mini-motifcount!??!?!
+
+
+Sample n log n, edges remove the duplicate buckets.
+For sliding window scheme try changing the deltas midway through the streaming?
